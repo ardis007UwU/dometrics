@@ -1,0 +1,9 @@
+/run/media/ardis/AI_DRIVE/(a)Dominion-Studios/Dometrics/build/CMakeFiles/dometrics.dir
+/run/media/ardis/AI_DRIVE/(a)Dominion-Studios/Dometrics/build/CMakeFiles/package.dir
+/run/media/ardis/AI_DRIVE/(a)Dominion-Studios/Dometrics/build/CMakeFiles/package_source.dir
+/run/media/ardis/AI_DRIVE/(a)Dominion-Studios/Dometrics/build/CMakeFiles/edit_cache.dir
+/run/media/ardis/AI_DRIVE/(a)Dominion-Studios/Dometrics/build/CMakeFiles/rebuild_cache.dir
+/run/media/ardis/AI_DRIVE/(a)Dominion-Studios/Dometrics/build/CMakeFiles/list_install_components.dir
+/run/media/ardis/AI_DRIVE/(a)Dominion-Studios/Dometrics/build/CMakeFiles/install.dir
+/run/media/ardis/AI_DRIVE/(a)Dominion-Studios/Dometrics/build/CMakeFiles/install/local.dir
+/run/media/ardis/AI_DRIVE/(a)Dominion-Studios/Dometrics/build/CMakeFiles/install/strip.dir

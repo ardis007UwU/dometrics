@@ -1,0 +1,130 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: linux-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake g++ libsqlite3-dev
+
+      - name: Configure (static)
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DDOMETRICS_STATIC=ON
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Package artifact
+        run: |
+          strip build/dometrics
+          mv build/dometrics "dometrics-linux-${{ matrix.arch }}"
+          "dometrics-linux-${{ matrix.arch }}" --version
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dometrics-linux-${{ matrix.arch }}
+          path: dometrics-linux-${{ matrix.arch }}
+          if-no-files-found: error
+
+  build-macos:
+    name: darwin-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: macos-13
+          - arch: arm64
+            runner: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Package artifact
+        run: |
+          strip build/dometrics
+          mv build/dometrics "dometrics-darwin-${{ matrix.arch }}"
+          "dometrics-darwin-${{ matrix.arch }}" --version
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dometrics-darwin-${{ matrix.arch }}
+          path: dometrics-darwin-${{ matrix.arch }}
+          if-no-files-found: error
+
+  release:
+    name: publish release
+    needs: [build-linux, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum dometrics-linux-* dometrics-darwin-* | sort -k2 > SHA256SUMS
+          cat SHA256SUMS
+          while read -r _ file; do chmod +x "$file"; done < SHA256SUMS
+
+      - name: Refresh packaging checksums
+        run: |
+          curl -fsSL -o /tmp/src.tar.gz \
+            "https://github.com/${{ github.repository }}/archive/refs/tags/${{ github.ref_name }}.tar.gz"
+          sum="$(sha256sum /tmp/src.tar.gz | cut -d' ' -f1)"
+          sed -i "s/^  sha256 \".*\"/  sha256 \"${sum}\"/" Formula/dometrics.rb
+          sed -i "s/^sha256sums=.*/sha256sums=('${sum}')/" PKGBUILD
+          cp Formula/dometrics.rb dist/dometrics.rb
+          cp PKGBUILD dist/PKGBUILD
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/dometrics-linux-*
+            dist/dometrics-darwin-*
+            dist/SHA256SUMS
+            dist/dometrics.rb
+            dist/PKGBUILD

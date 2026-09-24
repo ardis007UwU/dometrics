@@ -1,0 +1,10 @@
+Architecture: 
+Description: Zero-maintenance developer telemetry CLI and background daemon
+ Dometrics tracks active coding time via filesystem events, computes git line-of-code deltas, and aggregates multi-repo lineages into a single SQLite WAL database.
+Homepage: https://github.com/Dominion-Studios/dometrics
+Maintainer: Dominion Studios <dev@dominion-studios.example>
+Package: dometrics
+Priority: optional
+Section: devel
+Version: 1.0.0
+Installed-Size: 308
