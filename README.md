@@ -1,51 +1,159 @@
-Dometrics
+# Dometrics (v1.0.0)
 
-[![Release](https://img.shields.io/github/v/release/ardis007UwU/dometrics?style=flat-square)](https://github.com/ardis007UwU/dometrics/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![CI/CD Release](https://github.com/ardis007UwU/dometrics/actions/workflows/release.yml/badge.svg)](https://github.com/ardis007UwU/dometrics/actions)
+A zero-maintenance, single-binary C++20 developer telemetry daemon and CLI.
 
-**Dometrics** is a zero-maintenance, single-binary C++20 developer telemetry daemon and CLI. It tracks active coding time in real time via Linux `inotify` kernel events and indexes lines of code (LOC) into a local SQLite WAL database—100% offline with zero cloud tracking.
+Dometrics gets you from zero to tracking in under 2 minutes — with real-time `inotify` file system monitoring, a high-performance SQLite WAL database, and zero cloud telemetry.
 
-```text
-+==============================================================+
-|                    D O M E T R I C S                         |
-+==============================================================+
+---
 
-  Project        : DDCI
-  Path           : /run/media/ardis/AI_DRIVE/(a)Dominion-Studios/DDCI
-  ------------------------------------------------------------
-  Lifetime active: 234.34h  (234h 20m 35s)
-  Total lines    : +47,631 / -410  (net 47,221 LOC)
-  Start date     : 2026-09-10
-  Commits        : 7
-  Last snapshot  : 2026-09-24 14:46:11
+## Quick Start (Universal Installer - Recommended)
 
-+==============================================================+
-Installation (All Linux Distros & macOS)1. Universal One-Line Script (Fastest)Automatically detects your OS/architecture, fetches the latest static Musl binary, and installs it to /usr/local/bin:Bashcurl -fsSL [https://raw.githubusercontent.com/ardis007UwU/dometrics/main/scripts/install.sh](https://raw.githubusercontent.com/ardis007UwU/dometrics/main/scripts/install.sh) | bash
-2. Arch Linux / Manjaro / EndeavourOS (yay / paru)Install natively from the Arch User Repository (AUR):Bashyay -S dometrics-bin
-# or
-paru -S dometrics-bin
-3. Fedora / RHEL / CentOS / Rocky (dnf via Copr)Enable the Fedora Copr repository and install natively:Bashsudo dnf copr enable ardis007UwU/dometrics
-sudo dnf install dometrics
-4. Ubuntu / Debian / Pop!_OS / Linux Mint (apt via PPA / .deb)Option A — Launchpad PPA:Bashsudo add-apt-repository ppa:ardis007UwU/dometrics
-sudo apt update && sudo apt install dometrics
-Option B — Direct .deb Install:Bashcurl -LO [https://github.com/ardis007UwU/dometrics/releases/latest/download/dometrics_1.0.0_amd64.deb](https://github.com/ardis007UwU/dometrics/releases/latest/download/dometrics_1.0.0_amd64.deb)
-sudo apt install ./dometrics_1.0.0_amd64.deb
-5. macOS & Linux Homebrew (brew)Bashbrew install ardis007UwU/tap/dometrics
-6. NixOS / Any Linux via Nix (nix)Run instantly without installing:Bashnix run github:ardis007UwU/dometrics -- summary
-Install to user profile:Bashnix profile install github:ardis007UwU/dometrics
-7. Universal AppImage & FlatpakAppImage (Zero-install executable):Bashcurl -LO [https://github.com/ardis007UwU/dometrics/releases/latest/download/dometrics-x86_64.AppImage](https://github.com/ardis007UwU/dometrics/releases/latest/download/dometrics-x86_64.AppImage)
-chmod +x dometrics-x86_64.AppImage
-./dometrics-x86_64.AppImage summary
-Flatpak:Bashflatpak install flathub org.dominion.Dometrics
-Quick Start1. Register a ProjectNavigate to any project directory and initialize tracking:Bashcd /path/to/your/project
-dometrics init
-2. Start Background DaemonLaunch the lightweight background daemon (monitors edits silently in the background):Bashdometrics daemon --start
-3. View SummaryRun dometrics summary from any project folder or subfolder:Bashdometrics summary
-4. Update Line CountsRun a repo scan after major commits or refactors:Bashdometrics scan
-CLI ReferenceCommandSyntaxDescriptioninitdometrics init [--name <name>]Registers current directory as a tracked projectsummarydometrics summary [PROJECT_NAME]Displays the minimalist ASCII telemetry dashboarddaemondometrics daemon [--start|--stop|--status]Manages the background inotify event watcherscandometrics scan [PROJECT_NAME]Scans directory tree and commits a new LOC snapshotlogdometrics log --add-hours <float>Adds manual hours to active project telemetry⚙️ Environment VariablesDOMETRICS_DB: Override default SQLite database location (default: ~/.config/dometrics/dometrics.db).DOMETRICS_IDLE_TIMEOUT: Override daemon idle timeout in seconds (default: 300).🔧 Building from SourceDependenciesC++20 compatible compiler (gcc >= 11 or clang >= 13)cmake >= 3.20sqlite3 development headersBuild & Global InstallBashgit clone [https://github.com/ardis007UwU/dometrics.git](https://github.com/ardis007UwU/dometrics.git)
+The fastest and cleanest way to run Dometrics is via the universal installation script, which detects your OS and architecture, and pulls the fully hardened static Musl binary for you automatically.
+
+### Step 1 - Download and Install
+
+```bash
+curl -fsSL [https://raw.githubusercontent.com/ardis007UwU/dometrics/main/scripts/install.sh](https://raw.githubusercontent.com/ardis007UwU/dometrics/main/scripts/install.sh) | bash
+```
+
+That's it. The installer:
+
+- auto-detects Linux/macOS and your CPU architecture (`x86_64`, `aarch64`, `arm64`),
+- pulls the latest standalone binary directly from GitHub Releases,
+- installs it securely to `/usr/local/bin/dometrics`,
+- sets the correct executable permissions.
+
+> **Alternative (Package Managers):** Dometrics is also available natively via `yay -S dometrics-bin` (AUR), `brew install ardis007UwU/tap/dometrics` (Homebrew), `sudo dnf install dometrics` (Fedora Copr), and `nix profile install github:ardis007UwU/dometrics`.
+
+### Architecture At a Glance
+
+| Layer | Guarantee |
+| --- | --- |
+| Storage | Local SQLite WAL database — 100% offline, zero cloud tracking |
+| Security | `0600` strict owner-only database file permissions |
+| Performance | Sub-0.1% CPU background daemon using Linux `inotify` kernel events |
+| Safety | POSIX signal handling (`SIGINT`, `SIGTERM`) for safe WAL flushes |
+| Binary | Fully static Musl compilation (no dependency hell) |
+| UI | Minimalist ASCII dashboard — no web servers, no electron |
+
+---
+
+## Alternative: Native Build & Prerequisites
+
+If you prefer to compile and run Dometrics natively on your machine without the pre-built binaries, you need a **C++20 compiler**, **CMake**, and **SQLite3**.
+
+Pick your OS below to install the dependencies:
+
+### macOS
+
+```bash
+xcode-select --install
+brew install cmake sqlite3 pkg-config
+```
+
+### Ubuntu / Debian / Pop!_OS
+
+```bash
+sudo apt update && sudo apt install -y build-essential cmake libsqlite3-dev pkg-config
+```
+
+### Fedora / RHEL / AlmaLinux
+
+```bash
+sudo dnf groupinstall "Development Tools" && sudo dnf install -y cmake sqlite-devel pkgconfig
+```
+
+### Arch Linux / Manjaro
+
+```bash
+sudo pacman -S --needed base-devel cmake sqlite pkgconf
+```
+
+### Alpine Linux
+
+```bash
+apk add build-base cmake sqlite-dev pkgconf
+```
+
+### Windows
+
+The easiest way to run Dometrics natively on Windows is through WSL2 (Windows Subsystem for Linux):
+
+```bash
+wsl --install
+```
+
+Once inside your WSL Ubuntu terminal, run the Ubuntu/Debian command above.
+
+---
+
+## Step-by-Step Native Guide
+
+### Step 1 - Clone the Repository
+
+```bash
+git clone [https://github.com/ardis007UwU/dometrics.git](https://github.com/ardis007UwU/dometrics.git)
 cd dometrics
+```
+
+### Step 2 - Build Dometrics
+
+**Option A (Recommended - Global Install):**
+
+```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
 sudo cmake --install build
-LicenseDistributed under the MIT License.
+```
+
+**Option B (Manual CMake Build for Local Use):**
+
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+```
+
+### Step 3 - Start the Daemon
+
+Navigate to your project directory and start the background tracker:
+
+```bash
+cd /path/to/your/project
+dometrics init
+dometrics daemon --start
+```
+
+> **Runtime data lives in `~/.config/dometrics/`.** The database (`dometrics.db`) and its WAL sidecars live here with strict `0600` permissions. The binary resolves this automatically (or use `DOMETRICS_DB=/path` to override).
+
+---
+
+## Useful Commands
+
+### Startup & Tracking Commands
+
+| Command | Description |
+| --- | --- |
+| `dometrics init` | Registers the current directory as a tracked project |
+| `dometrics daemon --start` | Starts the background `inotify` event watcher |
+| `dometrics daemon --stop` | Stops the running background daemon |
+| `dometrics daemon --status` | Checks if the daemon is currently active |
+
+### Data & Reporting Commands
+
+| Command | Description |
+| --- | --- |
+| `dometrics summary` | Displays the minimalist ASCII telemetry dashboard |
+| `dometrics scan` | Forces a repository snapshot and updates the line count |
+| `dometrics log --add-hours <h>` | Adds manual development hours to the active project |
+
+---
+
+## License and Copyright
+
+Copyright (c) 2026 Dominion Studios. All rights reserved.
+
+This project is licensed under the **MIT License**.
+
+**Permitted:** Free to run, inspect, review, modify, distribute, and study for both personal and commercial use, provided the original copyright notice and permission notice are included in all copies or substantial portions of the software.
+
+See the full terms in the [LICENSE](LICENSE) file.
