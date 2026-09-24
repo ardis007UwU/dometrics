@@ -1,0 +1,18 @@
+pkgbase = dometrics-bin
+	pkgdesc = Zero-maintenance developer telemetry CLI and background daemon (static musl binary)
+	pkgver = 1.0.0
+	pkgrel = 1
+	url = https://github.com/ardis007UwU/dometrics
+	arch = x86_64
+	arch = aarch64
+	license = MIT
+	provides = dometrics
+	conflicts = dometrics
+	source = LICENSE::https://github.com/ardis007UwU/dometrics/raw/v1.0.0/LICENSE
+	sha256sums = 019073b1efcf424f661089becaac0c5332448b11389b22ec891b9989d7cae2fb
+	source_x86_64 = dometrics::https://github.com/ardis007UwU/dometrics/releases/download/v1.0.0/dometrics-linux-x86_64
+	sha256sums_x86_64 = SKIP
+	source_aarch64 = dometrics::https://github.com/ardis007UwU/dometrics/releases/download/v1.0.0/dometrics-linux-aarch64
+	sha256sums_aarch64 = SKIP
+
+pkgname = dometrics-bin

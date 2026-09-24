@@ -1,3 +1,11 @@
+# Release pipeline for Dometrics.
+#
+# Triggers on version tags (v*), produces:
+#   * fully static musl Linux binaries (x86_64, aarch64) via Alpine containers
+#   * native macOS binaries (x86_64, arm64)
+#   * CPack installers (.deb, .rpm) from a glibc source build
+#   * SHA256SUMS over every published artifact
+# and uploads everything to the GitHub Release with softprops/action-gh-release@v1.
 name: Release
 
 on:
@@ -9,41 +17,57 @@ permissions:
   contents: write
 
 jobs:
+  # --------------------------------------------------------------------------
+  # Static musl binaries for Linux. Builds happen inside multi-arch Alpine
+  # containers so the result is a standalone musl executable with zero dynamic
+  # dependencies (libsqlite3.a comes from Alpine's sqlite-dev package).
+  # --------------------------------------------------------------------------
   build-linux:
     name: linux-${{ matrix.arch }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: x86_64
-            runner: ubuntu-latest
+            platform: linux/amd64
           - arch: aarch64
-            runner: ubuntu-24.04-arm
+            platform: linux/arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cmake g++ libsqlite3-dev
+      - name: Register QEMU binfmt (aarch64 cross-execution)
+        if: matrix.arch == 'aarch64'
+        run: docker run --privileged --rm tonistiigi/binfmt --install arm64
 
-      - name: Configure (static)
+      - name: Build static musl binary
         run: |
-          cmake -S . -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DDOMETRICS_STATIC=ON
+          docker run --rm \
+            --platform "${{ matrix.platform }}" \
+            -v "$PWD:/src" -w /src \
+            alpine:3.20 \
+            sh -ec '
+              apk add --no-cache cmake g++ make sqlite-dev >/dev/null
+              sqlite_a="$(find /usr -name libsqlite3.a | head -n 1)"
+              test -n "$sqlite_a" || { echo "libsqlite3.a missing"; exit 1; }
+              cmake -S . -B build \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DDOMETRICS_STATIC=ON \
+                -DSQLITE3_STATIC_ARCHIVE="$sqlite_a"
+              cmake --build build --parallel "$(nproc)"
+              strip build/dometrics
+              mv build/dometrics "dometrics-linux-${{ matrix.arch }}"
+            '
+          # Container files are root-owned; hand them back to the runner user.
+          sudo chown "$(id -u):$(id -g)" "dometrics-linux-${{ matrix.arch }}"
+          file "dometrics-linux-${{ matrix.arch }}"
 
-      - name: Build
-        run: cmake --build build --parallel
-
-      - name: Package artifact
+      - name: Smoke-test standalone binary
         run: |
-          strip build/dometrics
-          mv build/dometrics "dometrics-linux-${{ matrix.arch }}"
-          "dometrics-linux-${{ matrix.arch }}" --version
+          "./dometrics-linux-${{ matrix.arch }}" --version
+          ldd "./dometrics-linux-${{ matrix.arch }}" 2>&1 | grep -q "not a dynamic executable" \
+            || echo "warning: ldd output differs (expected: fully static)"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -52,6 +76,10 @@ jobs:
           path: dometrics-linux-${{ matrix.arch }}
           if-no-files-found: error
 
+  # --------------------------------------------------------------------------
+  # Native macOS binaries (system SQLite; a fully static link is not possible
+  # on Darwin, so these are standalone against the OS SDK).
+  # --------------------------------------------------------------------------
   build-macos:
     name: darwin-${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
@@ -68,8 +96,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure
-        run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build --parallel
@@ -78,7 +105,7 @@ jobs:
         run: |
           strip build/dometrics
           mv build/dometrics "dometrics-darwin-${{ matrix.arch }}"
-          "dometrics-darwin-${{ matrix.arch }}" --version
+          "./dometrics-darwin-${{ matrix.arch }}" --version
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -87,44 +114,100 @@ jobs:
           path: dometrics-darwin-${{ matrix.arch }}
           if-no-files-found: error
 
-  release:
-    name: publish release
-    needs: [build-linux, build-macos]
+  # --------------------------------------------------------------------------
+  # CPack installers: glibc source build on Ubuntu, then `cpack` emits both
+  # the .deb and .rpm configured in CMakeLists.txt (CPACK_GENERATOR=DEB;RPM).
+  # --------------------------------------------------------------------------
+  build-packages:
+    name: cpack-deb-rpm
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Collect binaries
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake g++ libsqlite3-dev dpkg-dev rpm
+
+      - name: Configure and build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+
+      - name: Generate .deb and .rpm with CPack
+        run: |
+          cd build
+          cpack
+          ls -la ./*.deb ./*.rpm
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpack-packages
+          path: |
+            build/*.deb
+            build/*.rpm
+          if-no-files-found: error
+
+  # --------------------------------------------------------------------------
+  # Assemble SHA256SUMS, refresh packaging checksums against the real tag,
+  # and publish every artifact to the GitHub Release.
+  # --------------------------------------------------------------------------
+  release:
+    name: publish release
+    needs: [build-linux, build-macos, build-packages]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect all artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
 
-      - name: Checksums
+      - name: Generate SHA256SUMS
         working-directory: dist
         run: |
-          sha256sum dometrics-linux-* dometrics-darwin-* | sort -k2 > SHA256SUMS
+          chmod +x dometrics-linux-* dometrics-darwin-*
+          sha256sum dometrics-linux-* dometrics-darwin-* ./*.deb ./*.rpm \
+            | sort -k2 > SHA256SUMS
           cat SHA256SUMS
-          while read -r _ file; do chmod +x "$file"; done < SHA256SUMS
 
-      - name: Refresh packaging checksums
+      - name: Refresh packaging checksums against the tagged release
         run: |
+          # Source tarball hash for the Homebrew formula.
           curl -fsSL -o /tmp/src.tar.gz \
             "https://github.com/${{ github.repository }}/archive/refs/tags/${{ github.ref_name }}.tar.gz"
-          sum="$(sha256sum /tmp/src.tar.gz | cut -d' ' -f1)"
-          sed -i "s/^  sha256 \".*\"/  sha256 \"${sum}\"/" Formula/dometrics.rb
-          sed -i "s/^sha256sums=.*/sha256sums=('${sum}')/" PKGBUILD
+          tar_sum="$(sha256sum /tmp/src.tar.gz | cut -d' ' -f1)"
+          sed -i "s/^  sha256 \".*\"/  sha256 \"${tar_sum}\"/" Formula/dometrics.rb
+
+          # Binary hashes for the AUR dometrics-bin manifests.
+          x86_sum="$(sha256sum dist/dometrics-linux-x86_64 | cut -d' ' -f1)"
+          arm_sum="$(sha256sum dist/dometrics-linux-aarch64 | cut -d' ' -f1)"
+          sed -i "s/sha256sums_x86_64=('SKIP')/sha256sums_x86_64=('${x86_sum}')/" PKGBUILD
+          sed -i "s/sha256sums_aarch64=('SKIP')/sha256sums_aarch64=('${arm_sum}')/" PKGBUILD
+          sed -i "s/^sha256sums_x86_64 = .*/sha256sums_x86_64 = ${x86_sum}/" .SRCINFO
+          sed -i "s/^sha256sums_aarch64 = .*/sha256sums_aarch64 = ${arm_sum}/" .SRCINFO
+
           cp Formula/dometrics.rb dist/dometrics.rb
           cp PKGBUILD dist/PKGBUILD
+          cp .SRCINFO dist/.SRCINFO
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          generate_release_notes: true
           files: |
             dist/dometrics-linux-*
             dist/dometrics-darwin-*
+            dist/*.deb
+            dist/*.rpm
             dist/SHA256SUMS
             dist/dometrics.rb
             dist/PKGBUILD
+            dist/.SRCINFO

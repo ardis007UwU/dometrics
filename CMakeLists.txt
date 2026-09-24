@@ -77,28 +77,27 @@ else()
   target_link_libraries(dometrics PRIVATE ${SQLITE3_LIBRARIES} Threads::Threads)
 endif()
 
-# stdc++fs is required on GCC < 9; harmless to request explicitly otherwise.
+# stdc++fs is required on GCC < 9 for <filesystem>.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
   target_link_libraries(dometrics PRIVATE stdc++fs)
 endif()
 
-if(DOMETRICS_STATIC)
-  target_link_options(dometrics PRIVATE -static)
-endif()
-
 # --- Installation (GNU standard directories) -----------------------------------
+# `dometrics install` / distro packaging place the single CLI binary in BINDIR.
 include(GNUInstallDirs)
-install(TARGETS dometrics RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS dometrics DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # --- CPack packaging (Debian .deb + RedHat .rpm) --------------------------------
+# `cpack -G DEB` / `cpack -G RPM` (or bare `cpack`) produce distributable
+# installers from this configuration; CI attaches both to GitHub Releases.
 set(CPACK_PACKAGE_NAME "dometrics")
-set(CPACK_PACKAGE_VENDOR "Dominion Studios")
-set(CPACK_PACKAGE_CONTACT "Dominion Studios <dev@dominion-studios.example>")
+set(CPACK_PACKAGE_VENDOR "Dometrics Project")
+set(CPACK_PACKAGE_CONTACT "ardis007UwU <ardis007@users.noreply.github.com>")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
     "Zero-maintenance developer telemetry CLI and background daemon")
 set(CPACK_PACKAGE_DESCRIPTION
     "Dometrics tracks active coding time via filesystem events, computes git line-of-code deltas, and aggregates multi-repo lineages into a single SQLite WAL database.")
-set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/Dominion-Studios/dometrics")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/ardis007UwU/dometrics")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "dometrics")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
@@ -111,7 +110,7 @@ set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
-# RedHat / Fedora
+# RedHat / Fedora / Copr
 set(CPACK_RPM_PACKAGE_GROUP "Development/Tools")
 set(CPACK_RPM_PACKAGE_LICENSE "MIT")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)

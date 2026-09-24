@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Dometrics one-line installer.
-# Usage: curl -fsSL https://raw.githubusercontent.com/Dominion-Studios/dometrics/main/scripts/install.sh | bash
+# Dometrics one-line installer: detects OS/arch, fetches the release binary,
+# verifies its SHA256, and installs it to /usr/local/bin with mode 0755.
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/ardis007UwU/dometrics/main/scripts/install.sh | bash
 set -euo pipefail
 
-REPO="Dominion-Studios/dometrics"
+REPO="ardis007UwU/dometrics"
 RELEASE_URL="https://github.com/${REPO}/releases/latest/download"
 DEST_DIR="/usr/local/bin"
 DEST_BIN="${DEST_DIR}/dometrics"
